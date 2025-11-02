@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VibeNow Map</title>
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            background: #0a1628;
+            overflow: hidden;
+        }
+        
+        #map { 
+            width: 100%; 
+            height: 100vh; 
+        }
+        
+        /* Hide Mapbox default controls */
+        .mapboxgl-ctrl-top-left,
+        .mapboxgl-ctrl-top-right,
+        .mapboxgl-ctrl-bottom-left,
+        .mapboxgl-ctrl-bottom-right {
+            display: none !important;
+        }
+        
+        /* Map Style - Beautiful */
+        .mapboxgl-canvas {
+            filter: brightness(0.95) contrast(1.1) saturate(0.9);
+        }
+        
+        /* Markers - VIBE (Neon) */
+        .marker {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 3px solid #00d4ff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            font-size: 16px;
+            filter: drop-shadow(0 0 12px rgba(0, 212, 255, 0.7));
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { filter: drop-shadow(0 0 12px rgba(0, 212, 255, 0.7)); }
+            50% { filter: drop-shadow(0 0 20px rgba(0, 212, 255, 0.9)); }
+        }
+        
+        .marker:hover {
+            transform: scale(1.4);
+            filter: drop-shadow(0 0 25px rgba(0, 212, 255, 1));
+        }
+        
+        .marker.food { 
+            background: #ff00ff;
+            border-color: #ff00ff;
+            filter: drop-shadow(0 0 12px rgba(255, 0, 255, 0.8));
+        }
+        
+        .marker.events { 
+            background: #00ff00;
+            border-color: #00ff00;
+            filter: drop-shadow(0 0 12px rgba(0, 255, 0, 0.8));
+        }
+        
+        .marker.nightlife { 
+            background: #ffff00;
+            border-color: #ffff00;
+            filter: drop-shadow(0 0 12px rgba(255, 255, 0, 0.8));
+        }
+        
+        .marker.outdoor { 
+            background: #00d4ff;
+            border-color: #00d4ff;
+            filter: drop-shadow(0 0 12px rgba(0, 212, 255, 0.8));
+        }
+        
+        /* User Location Marker */
+        .user-marker {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #00d4ff;
+            border: 4px solid #ff00ff;
+            box-shadow: 0 0 25px rgba(0, 212, 255, 0.9);
+            animation: userPulse 1.5s infinite;
+        }
+        
+        @keyframes userPulse {
+            0%, 100% { box-shadow: 0 0 25px rgba(0, 212, 255, 0.9); }
+            50% { box-shadow: 0 0 40px rgba(0, 212, 255, 1); }
+        }
+        
+        /* POI Markers */
+        .poi-marker {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #555555;
+            border: 1px solid #888888;
+            opacity: 0.6;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .poi-marker:hover {
+            opacity: 1;
+            transform: scale(1.3);
+            background: #777777;
+        }
+        
+        /* Popups */
+        .mapboxgl-popup-content {
+            background: rgba(10, 22, 40, 0.95) !important;
+            border: 2px solid #00d4ff !important;
+            border-radius: 12px !important;
+            color: #00d4ff;
+            padding: 12px !important;
+            font-size: 13px;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        .mapboxgl-popup-tip {
+            border-top-color: #00d4ff !important;
+        }
+        
+        /* Loading */
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(10, 22, 40, 0.95);
+            color: #00d4ff;
+            padding: 20px 30px;
+            border-radius: 12px;
+            border: 2px solid #00d4ff;
+            font-size: 16px;
+            z-index: 1000;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+        }
+        
+        .loading.hidden {
+            display: none;
+        }
+        
+        /* Search Bar (hidden for now) */
+        .search-bar {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            right: 15px;
+            background: rgba(13, 31, 45, 0.95);
+            border: 2px solid #00d4ff;
+            border-radius: 12px;
+            padding: 10px 15px;
+            color: #00d4ff;
+            font-size: 13px;
+            z-index: 100;
+            display: none;
+        }
+        
+        /* Publish Button */
+        .publish-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #00d4ff, #ff00ff);
+            border: none;
+            color: white;
+            font-size: 28px;
+            cursor: pointer;
+            box-shadow: 0 8px 30px rgba(0, 212, 255, 0.4);
+            transition: all 0.3s ease;
+            z-index: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .publish-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 12px 40px rgba(0, 212, 255, 0.6);
+        }
+        
+        .publish-btn:active {
+            transform: scale(0.95);
+        }
+        
+        /* Bottom Sheet */
+        .bottom-sheet {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(to bottom, #0d1f2d, #0a1628);
+            border: 2px solid #00d4ff;
+            border-bottom: none;
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+            padding: 20px;
+            z-index: 999;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 -8px 40px rgba(0, 212, 255, 0.3);
+            animation: slideUp 0.3s ease;
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        
+        .bottom-sheet.hidden {
+            display: none;
+        }
+        
+        .bottom-sheet-content {
+            color: #00d4ff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        .bottom-sheet-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #ff00ff;
+            margin-bottom: 8px;
+        }
+        
+        .bottom-sheet-subtitle {
+            color: #888;
+            font-size: 12px;
+            margin-bottom: 16px;
+        }
+        
+        .bottom-sheet-video {
+            width: 100%;
+            height: 180px;
+            background: #050d18;
+            border-radius: 12px;
+            border: 2px solid #00d4ff;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        
+        .bottom-sheet-video img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .bottom-sheet-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin: 16px 0;
+        }
+        
+        .bottom-sheet-btn {
+            padding: 12px;
+            border-radius: 8px;
+            border: 2px solid;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-navigate {
+            background: rgba(0, 212, 255, 0.1);
+            border-color: #00d4ff;
+            color: #00d4ff;
+        }
+        
+        .btn-navigate:hover {
+            background: rgba(0, 212, 255, 0.2);
+        }
+        
+        .btn-share {
+            background: rgba(255, 0, 255, 0.1);
+            border-color: #ff00ff;
+            color: #ff00ff;
+        }
+        
+        .btn-share:hover {
+            background: rgba(255, 0, 255, 0.2);
+        }
+        
+        .btn-close {
+            grid-column: 1 / -1;
+            background: transparent;
+            border-color: #666;
+            color: #888;
+            margin-top: 8px;
+        }
+        
+        .btn-close:hover {
+            border-color: #888;
+            color: #aaa;
+        }
+        
+        /* Console log styling */
+        .console-log {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div id='map'></div>
+    <div class="loading" id="loading">📍 Caricamento mappa...</div>
+    <div class="search-bar" id="searchBar">🔍 Cerca attività...</div>
+    <button class="publish-btn" id="publishBtn">+</button>
+    
+    <div class="bottom-sheet hidden" id="bottomSheet">
+        <div class="bottom-sheet-content">
+            <div style="text-align: center; margin-bottom: 16px;">
+                <div style="width: 40px; height: 4px; background: #00d4ff; border-radius: 2px; margin: 0 auto; opacity: 0.5;"></div>
+            </div>
+            
+            <div class="bottom-sheet-video" id="vibeVideo">
+                <div>📹 Video Preview</div>
+            </div>
+            
+            <div class="bottom-sheet-title" id="vibeTitle">Vibe Title</div>
+            <div class="bottom-sheet-subtitle" id="vibeSubtitle">🏷️ Category • 📍 Location</div>
+            
+            <div style="background: rgba(0, 212, 255, 0.1); border: 1px solid #00d4ff; border-radius: 8px; padding: 12px; margin-bottom: 12px; font-size: 12px;">
+                <div>👁️ <span id="vibeViews">0</span> views | ❤️ <span id="vibeLikes">0</span> likes</div>
+                <div style="margin-top: 6px; color: #ffff00;">⏱️ Scade fra: <span id="vibeTime">--</span></div>
+            </div>
+            
+            <div class="bottom-sheet-buttons">
+                <button class="bottom-sheet-btn btn-navigate" onclick="navigateTo()">🚗 Naviga</button>
+                <button class="bottom-sheet-btn btn-share" onclick="shareVibe()">📤 Condividi</button>
+                <button class="bottom-sheet-btn btn-close" onclick="closeBottomSheet()">Chiudi</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ====== CONFIGURATION ======
+        const SUPABASE_URL = 'https://dtykufuagxoqdtdalvyt.supabase.co'
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0eWt1ZnVhZ3hvcWR0ZGFsdnl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE5NTM4MzQsImV4cCI6MjA3NzUyOTgzNH0.5577aEMGIEa3pUd8AK-1EmR6iVWpFDGSq_8zyAl729c'
+        const MAPBOX_TOKEN = 'pk.eyJ1IjoiZWxhZ2FiaWEiLCJhIjoiY21oZnd4ODJsMDMzNTJrcXZ0dnVxa21kYiJ9.PBKZrjAX0iGRpo0ztAafgg'
+        
+        // ====== GLOBAL VARIABLES ======
+        let map;
+        let supabase;
+        let activeMarkers = {};
+        let userLat = 45.4642;
+        let userLng = 9.1900;
+        let currentVibe = null;
+        
+        // ====== INITIALIZATION ======
+        mapboxgl.accessToken = MAPBOX_TOKEN;
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        
+        // ====== FUNCTIONS ======
+        
+        // 1. GET CURRENT TIME REMAINING
+        function getTimeRemaining(expiryTime) {
+            const diff = new Date(expiryTime) - new Date();
+            if (diff < 0) return "SCADUTO";
+            const hours = Math.floor(diff / 3600000);
+            const minutes = Math.floor((diff % 3600000) / 60000);
+            return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+        }
+        
+        // 2. ADD USER LOCATION MARKER
+        function addUserLocationMarker(lat, lng) {
+            const el = document.createElement('div');
+            el.className = 'user-marker';
+            
+            const popup = new mapboxgl.Popup({ offset: 15 }).setHTML(
+                `<div style="text-align: center;"><strong>📍 La tua posizione</strong></div>`
+            );
+            
+            new mapboxgl.Marker(el)
+                .setLngLat([lng, lat])
+                .setPopup(popup)
+                .addTo(map);
+            
+            console.log('✅ User location marker aggiunto');
+        }
+        
+        // 3. ADD VIBE MARKER
+        function addVibeMarker(vibe) {
+            const el = document.createElement('div');
+            el.className = `marker ${vibe.category}`;
+            el.innerHTML = '●';
+            
+            // Click apre bottom sheet
+            el.addEventListener('click', () => {
+                showBottomSheet(vibe);
+            });
+            
+            const marker = new mapboxgl.Marker(el)
+                .setLngLat([vibe.longitude, vibe.latitude])
+                .addTo(map);
+            
+            activeMarkers[vibe.id] = marker;
+            
+            // Auto-remove quando scade
+            const timeUntilExpiry = new Date(vibe.expires_at) - new Date();
+            if (timeUntilExpiry > 0) {
+                setTimeout(() => {
+                    marker.remove();
+                    delete activeMarkers[vibe.id];
+                    console.log(`❌ Vibe scaduto: ${vibe.title}`);
+                }, timeUntilExpiry);
+            }
+        }
+        
+        // 4. ADD POI MARKER
+        function addPOIMarker(place) {
+            const el = document.createElement('div');
+            el.className = 'poi-marker';
+            
+            const popup = new mapboxgl.Popup({ offset: 15 }).setHTML(
+                `<div><strong>${place.name}</strong><br><small>${place.address || ''}</small></div>`
+            );
+            
+            new mapboxgl.Marker(el)
+                .setLngLat([place.longitude, place.latitude])
+                .setPopup(popup)
+                .addTo(map);
+        }
+        
+        // 5. SHOW BOTTOM SHEET
+        function showBottomSheet(vibe) {
+            currentVibe = vibe;
+            
+            document.getElementById('vibeTitle').textContent = vibe.title;
+            document.getElementById('vibeSubtitle').textContent = `🏷️ ${vibe.category} • 📍 ${vibe.address || 'Location'}`;
+            document.getElementById('vibeViews').textContent = vibe.views || 0;
+            document.getElementById('vibeLikes').textContent = vibe.likes || 0;
+            document.getElementById('vibeTime').textContent = getTimeRemaining(vibe.expires_at);
+            
+            if (vibe.thumbnail_url) {
+                document.getElementById('vibeVideo').innerHTML = `<img src="${vibe.thumbnail_url}" alt="video">`;
+            }
+            
+            document.getElementById('bottomSheet').classList.remove('hidden');
+        }
+        
+        // 6. CLOSE BOTTOM SHEET
+        function closeBottomSheet() {
+            document.getElementById('bottomSheet').classList.add('hidden');
+            currentVibe = null;
+        }
+        
+        // 7. NAVIGATE TO VIBE
+        function navigateTo() {
+            if (!currentVibe) return;
+            const url = `https://www.google.com/maps/dir/?api=1&destination=${currentVibe.latitude},${currentVibe.longitude}&travelmode=driving`;
+            window.open(url, '_blank');
+        }
+        
+        // 8. SHARE VIBE
+        function shareVibe() {
+            if (!currentVibe) return;
+            const shareUrl = `https://vibenow.app/vibe/${currentVibe.id}`;
+            
+            if (navigator.share) {
+                navigator.share({
+                    title: 'VibeNow',
+                    text: `Guarda: ${currentVibe.title}`,
+                    url: shareUrl
+                });
+            } else {
+                alert('Link: ' + shareUrl);
+            }
+        }
+        
+        // 9. LOAD VIBES FROM SUPABASE
+        async function loadVibes() {
+            const { data, error } = await supabase
+                .from('vibes')
+                .select('*')
+                .gt('expires_at', new Date().toISOString())
+                .order('created_at', { ascending: false })
+                .limit(50);
+            
+            if (error) {
+                console.error('❌ Errore caricamento vibes:', error);
+                return;
+            }
+            
+            console.log(`✅ Caricati ${data.length} vibes`);
+            data.forEach(vibe => addVibeMarker(vibe));
+        }
+        
+        // 10. LOAD PLACES (POI)
+        async function loadPlaces() {
+            const { data, error } = await supabase
+                .from('places')
+                .select('*')
+                .limit(100);
+            
+            if (error) {
+                console.warn('⚠️ Errore caricamento places:', error);
+                return;
+            }
+            
+            console.log(`✅ Caricati ${data.length} POI`);
+            data.forEach(place => addPOIMarker(place));
+        }
+        
+        // 11. SETUP REAL-TIME UPDATES
+        function setupRealtimeUpdates() {
+            supabase
+                .channel('vibes_channel')
+                .on(
+                    'postgres_changes',
+                    {
+                        event: 'INSERT',
+                        schema: 'public',
+                        table: 'vibes'
+                    },
+                    (payload) => {
+                        console.log('✅✅ NUOVO VIBE RICEVUTO IN REAL-TIME:', payload.new.title);
+                        addVibeMarker(payload.new);
+                    }
+                )
+                .subscribe();
+        }
+        
+        // 12. INIT MAP
+        function initMap(center) {
+            map = new mapboxgl.Map({
+                container: 'map',
+                style: 'mapbox://styles/mapbox/dark-v11',
+                center: center,
+                zoom: 15,
+                pitch: 0,
+                bearing: 0
+            });
+            
+            map.on('load', () => {
+                console.log('🗺️ Mappa caricata');
+                document.getElementById('loading').classList.add('hidden');
+                
+                addUserLocationMarker(userLat, userLng);
+                loadVibes();
+                loadPlaces();
+                setupRealtimeUpdates();
+                
+                // Refresh vibes ogni 60 secondi
+                setInterval(loadVibes, 60000);
+            });
+        }
+        
+        // 13. GET GEOLOCATION
+        function startGeolocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        userLat = position.coords.latitude;
+                        userLng = position.coords.longitude;
+                        console.log(`📍 Posizione trovata: ${userLat}, ${userLng}`);
+                        initMap([userLng, userLat]);
+                    },
+                    (error) => {
+                        console.warn('⚠️ Geolocalizzazione non disponibile:', error);
+                        initMap([userLng, userLat]); // Default Milano
+                    }
+                );
+            } else {
+                console.warn('⚠️ Geolocalizzazione non supportata');
+                initMap([userLng, userLat]); // Default Milano
+            }
+        }
+        
+        // 14. PUBLISH BUTTON
+        document.getElementById('publishBtn').addEventListener('click', () => {
+            console.log('📍 Publish button clicked');
+            // In Rork: navigate to PublishVibe page
+            alert('Vai a: Pagina Publish Vibe');
+        });
+        
+        // ====== START ======
+        window.addEventListener('load', startGeolocation);
+        
+        console.log('🚀 VibeNow Map System Ready');
+    </script>
+</body>
+</html>
