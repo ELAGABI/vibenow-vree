@@ -601,6 +601,19 @@
         
         console.log('🚀 VibeNow Map System Ready');
     </script>
+// Assicurati che questo sia ESATTAMENTE così:
+mapboxgl.accessToken = 'pk.eyJ1IjoiZWxhZ2FiaWEiLCJhIjoiY21oZnd4ODJsMDMzNTJrcXZ0dnVxa21kYiJ9.PBKZrjAX0iGRpo0ztAafgg';
+
+// Prova anche questo per debug:
+console.log('🗺️ Mapbox token:', mapboxgl.accessToken);
+
+// Poi inizializza mappa:
+map = new mapboxgl.Map({
+  container: 'map',
+  style: 'mapbox://styles/mapbox/dark-v11',
+  center: [userLng, userLat],
+  zoom: 15
+});
 
 </body>
 </html>
