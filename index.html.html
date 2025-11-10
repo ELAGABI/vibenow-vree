@@ -211,14 +211,111 @@
                 map.getCanvas().style.cursor = '';
             });
             
-            // 📤 Notify app that map is ready
-            if (window.ReactNativeWebView) {
-                window.ReactNativeWebView.postMessage(JSON.stringify({
-                    type: 'MAP_READY',
-                    status: 'Map initialized and ready'
-                }));
-            }
-        });
+            // ============================================
+// 📥 MESSAGE LISTENER (from React Native App)
+// ============================================
+window.addEventListener('message', (event) => {
+    try {
+        const data = typeof event.data === 'string' 
+            ? JSON.parse(event.data) 
+            : event.data;
+        
+        console.log('📨 Message received:', data.type, data);
+        
+        switch(data.type) {
+            case 'SET_CENTER':
+                console.log('🎯 SET_CENTER:', data.lat, data.lng);
+                console.log('Map loaded?', mapLoaded);
+                console.log('Map style loaded?', map.isStyleLoaded());
+                
+                // ✅ Update global variables
+                userLat = data.lat;
+                userLng = data.lng;
+                mapInitialized = true;
+                
+                // 🎯 FORCE CENTER CHANGE - No conditions
+                console.log('📍 Setting map center to [' + data.lng + ', ' + data.lat + ']');
+                map.easeTo({
+                    center: [data.lng, data.lat],
+                    zoom: 15,
+                    duration: 500
+                });
+                
+                // ✅ Add user location marker
+                setTimeout(() => {
+                    addUserLocationMarker(data.lat, data.lng);
+                }, 300);
+                
+                // 🎬 Smooth animation after
+                setTimeout(() => {
+                    console.log('🎬 Starting fly animation');
+                    map.flyTo({
+                        center: [data.lng, data.lat],
+                        zoom: 15,
+                        bearing: 0,
+                        pitch: 0,
+                        duration: 1200,
+                        essential: false
+                    });
+                }, 800);
+                break;
+                
+            case 'ADD_VIBE':
+                console.log('➕ ADD_VIBE:', data.vibe);
+                addVibeMarker(data.vibe);
+                break;
+                
+            case 'UPDATE_VIBES':
+                console.log('🔄 UPDATE_VIBES:', data.vibes.length);
+                updateAllVibes(data.vibes);
+                break;
+                
+            case 'FLY_TO':
+                console.log('✈️ FLY_TO:', data.lat, data.lng);
+                flyToLocation(data.lat, data.lng, data.zoom || 15);
+                break;
+                
+            case 'CLEAR_VIBES':
+                console.log('🗑️ CLEAR_VIBES');
+                const source = map.getSource('vibes-source');
+                if (source) {
+                    source.setData({
+                        type: 'FeatureCollection',
+                        features: []
+                    });
+                }
+                break;
+                
+            case 'REMOVE_VIBE':
+                console.log('❌ REMOVE_VIBE:', data.vibeId);
+                const vibeSource = map.getSource('vibes-source');
+                if (vibeSource) {
+                    const sourceData = vibeSource._data;
+                    vibeSource.setData({
+                        type: 'FeatureCollection',
+                        features: sourceData.features.filter(f => f.properties.id !== data.vibeId)
+                    });
+                }
+                break;
+                
+            default:
+                console.warn('⚠️ Unknown message type:', data.type);
+        }
+    } catch (error) {
+        console.error('❌ Error processing message:', error);
+    }
+});
+
+// ============================================
+// 📤 Notify app that map is ready
+// ============================================
+if (window.ReactNativeWebView) {
+    window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'MAP_READY',
+        status: 'Map initialized and ready'
+    }));
+}
+
         
         // ============================================
         // 🎨 CREATE CUSTOM MARKER IMAGE
