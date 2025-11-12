@@ -1,11 +1,14 @@
 <!DOCTYPE html>
-<html>
+<html lang="it">
 <head>
     <meta charset='utf-8' />
-    <title>VibeNow Map</title>
-    <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+    <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover' />
+    <title>VibeNow - Live Map</title>
+    
+    <!-- Mapbox -->
     <script src='https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.js'></script>
     <link href='https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.css' rel='stylesheet' />
+    
     <style>
         * {
             margin: 0;
@@ -13,49 +16,83 @@
             box-sizing: border-box;
         }
 
-        html,
-        body,
-        #map {
-            width: 100%;
-            height: 100%;
+        html, body, #map {
+            width: 100vw;
+            height: 100vh;
             overflow: hidden;
+            position: fixed;
+            top: 0;
+            left: 0;
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #0a0a0a;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Roboto, sans-serif;
+            background: #000;
             color: #fff;
         }
 
+        /* ==================== ANIMATIONS ==================== */
+        
         @keyframes glow {
-            0%,
-            100% {
-                filter: drop-shadow(0 0 4px rgba(0, 212, 255, 0.8));
+            0%, 100% {
+                filter: drop-shadow(0 0 6px rgba(0, 212, 255, 0.9));
             }
-
             50% {
-                filter: drop-shadow(0 0 16px rgba(0, 212, 255, 1));
+                filter: drop-shadow(0 0 20px rgba(0, 212, 255, 1)) drop-shadow(0 0 40px rgba(255, 0, 110, 0.6));
             }
         }
 
-        @keyframes fadeIn {
+        @keyframes pulse-ring {
             0% {
+                transform: scale(0.8);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(2.2);
                 opacity: 0;
             }
+        }
 
+        @keyframes pop-in {
+            0% {
+                transform: scale(0) rotate(-180deg);
+                opacity: 0;
+            }
+            60% {
+                transform: scale(1.2) rotate(10deg);
+            }
             100% {
+                transform: scale(1) rotate(0deg);
                 opacity: 1;
             }
         }
 
+        @keyframes fade-in {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* ==================== MAPBOX CUSTOMIZATION ==================== */
+
+        .mapboxgl-canvas {
+            font-smooth: antialiased;
+            -webkit-font-smoothing: antialiased;
+        }
+
         .mapboxgl-popup-content {
-            background: rgba(26, 26, 46, 0.95) !important;
+            background: rgba(15, 15, 35, 0.98) !important;
             color: #00d4ff !important;
-            padding: 12px !important;
-            border-radius: 8px !important;
-            border: 1px solid #00d4ff !important;
-            font-size: 12px;
-            box-shadow: 0 0 16px rgba(0, 212, 255, 0.5);
+            padding: 14px !important;
+            border-radius: 12px !important;
+            border: 2px solid #00d4ff !important;
+            font-size: 13px;
+            font-weight: 500;
+            box-shadow: 0 8px 32px rgba(0, 212, 255, 0.4);
             backdrop-filter: blur(10px);
         }
 
@@ -63,18 +100,117 @@
             border-top-color: #00d4ff !important;
         }
 
-        .loading-indicator {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: #00d4ff;
-            font-size: 14px;
-            z-index: 10;
-            opacity: 0.8;
+        .mapboxgl-popup-anchor-top .mapboxgl-popup-tip {
+            border-bottom-color: #00d4ff !important;
+            border-top-color: transparent !important;
         }
 
-        .hidden {
+        .mapboxgl-popup-close-button {
+            color: #00d4ff !important;
+            font-size: 20px !important;
+        }
+
+        .mapboxgl-popup-close-button:hover {
+            color: #ff006e !important;
+        }
+
+        /* ==================== LOADING STATE ==================== */
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.95), rgba(10, 10, 40, 0.95));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .loading-overlay.hidden {
+            display: none;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(0, 212, 255, 0.3);
+            border-top: 3px solid #00d4ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .loading-text {
+            color: #00d4ff;
+            font-size: 16px;
+            font-weight: 500;
+            letter-spacing: 1px;
+        }
+
+        /* ==================== BOTTOM INFO PANEL ==================== */
+
+        .info-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0.7));
+            padding: 20px;
+            z-index: 100;
+            animation: fade-in 0.6s ease-in;
+        }
+
+        .info-panel.hidden {
+            display: none;
+        }
+
+        .location-name {
+            color: #00d4ff;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            text-shadow: 0 2px 8px rgba(0, 212, 255, 0.3);
+        }
+
+        .location-coords {
+            color: rgba(0, 212, 255, 0.7);
+            font-size: 12px;
+            font-weight: 400;
+        }
+
+        /* ==================== TOP STATUS ==================== */
+
+        .status-badge {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 212, 255, 0.1);
+            border: 1px solid #00d4ff;
+            color: #00d4ff;
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            animation: fade-in 0.8s ease-in;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #00d4ff;
+            border-radius: 50%;
+            animation: glow 1.5s ease-in-out infinite;
+        }
+
+        .status-badge.hidden {
             display: none;
         }
     </style>
@@ -82,52 +218,91 @@
 
 <body>
     <div id='map'></div>
-    <div class="loading-indicator" id="loadingIndicator">📍 Rilevando posizione...</div>
+    
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <div class="loading-text">VIBENOW INITIALIZING...</div>
+    </div>
+
+    <div class="status-badge" id="statusBadge">
+        <div class="status-dot"></div>
+        <span>LIVE</span>
+    </div>
+
+    <div class="info-panel" id="infoPanel">
+        <div class="location-name" id="locationName">📍 Rilevando posizione...</div>
+        <div class="location-coords" id="locationCoords"></div>
+    </div>
 
     <script>
-        // ============================================================
-        // CONFIGURATION
-        // ============================================================
-
-        mapboxgl.accessToken = 'pk.eyJ1IjoiZWxhZ2FiaWEiLCJhIjoiY21oZnd4ODJsMDMzNTJrcXZ0dnVxa21kYiJ9.PBKZrjAX0iGRpo0ztAafgg';
-
-        let userLat = 45.46;
-        let userLng = 9.19;
-        let mapLoaded = false;
-        let userLocationMarker = null;
-        let locationDetected = false;
+        /* ====================================================================
+           VIBENOW INTERACTIVE MAP - PRODUCTION READY
+           Features: Real-time vibes, user location, smooth animations, pro UI
+           ==================================================================== */
 
         // ============================================================
-        // INITIALIZE MAPBOX
+        // 🔧 GLOBAL STATE
         // ============================================================
 
-        const map = new mapboxgl.Map({
-            container: 'map',
-            style: 'mapbox://styles/mapbox/dark-v11',
-            center: [userLng, userLat],
-            zoom: 13,
-            pitch: 0,
-            bearing: 0,
-            antialias: true,
-            renderWorldCopies: false
-        });
+        const STATE = {
+            // Mapbox
+            mapboxToken: 'pk.eyJ1IjoiZWxhZ2FiaWEiLCJhIjoiY21oZnd4ODJsMDMzNTJrcXZ0dnVxa21kYiJ9.PBKZrjAX0iGRpo0ztAafgg',
+            
+            // User Location
+            userLat: 45.4641,
+            userLng: 9.1899,
+            userLocation: null,
+            
+            // Map State
+            map: null,
+            mapLoaded: false,
+            userMarker: null,
+            popupCache: null,
+            
+            // Flags
+            locationDetected: false,
+            vibeLimitReached: false
+        };
 
         // ============================================================
-        // SETUP MAP ON LOAD
+        // 🗺️ INITIALIZE MAPBOX
         // ============================================================
 
-        map.on('load', () => {
-            console.log('✅ Mapbox loaded');
-            mapLoaded = true;
+        function initializeMap() {
+            console.log('🗺️ Initializing Mapbox...');
+            
+            mapboxgl.accessToken = STATE.mapboxToken;
 
-            const indicator = document.getElementById('loadingIndicator');
-            if (indicator) {
-                indicator.classList.add('hidden');
-            }
+            STATE.map = new mapboxgl.Map({
+                container: 'map',
+                style: 'mapbox://styles/mapbox/dark-v11',
+                center: [STATE.userLng, STATE.userLat],
+                zoom: 13,
+                pitch: 0,
+                bearing: 0,
+                antialias: true,
+                renderWorldCopies: false,
+                attributionControl: false
+            });
 
-            createMarkerImage();
+            STATE.map.on('load', setupMap);
+            STATE.map.on('error', (e) => console.error('❌ Map error:', e));
+        }
 
-            map.addSource('vibes-source', {
+        // ============================================================
+        // 📍 SETUP MAP LAYERS & SOURCES
+        // ============================================================
+
+        function setupMap() {
+            console.log('✅ Map loaded - Setting up layers...');
+            STATE.mapLoaded = true;
+
+            // Create marker image
+            createUserMarkerImage();
+            createVibeMarkerImage();
+
+            // Add GeoJSON source
+            STATE.map.addSource('vibes-source', {
                 type: 'geojson',
                 data: {
                     type: 'FeatureCollection',
@@ -135,238 +310,295 @@
                 }
             });
 
-            map.addLayer({
+            // Add vibe symbol layer
+            STATE.map.addLayer({
                 id: 'vibes-layer',
                 type: 'symbol',
                 source: 'vibes-source',
                 layout: {
                     'icon-image': 'vibe-marker',
-                    'icon-size': 1.8,
+                    'icon-size': ['interpolate', ['linear'], ['zoom'], 12, 1.2, 15, 1.8, 18, 2.2],
                     'icon-allow-overlap': true,
-                    'icon-ignore-placement': true
+                    'icon-ignore-placement': true,
+                    'icon-offset': [0, -8]
                 }
             });
 
-            map.addLayer({
+            // Add pulsing circle layer
+            STATE.map.addLayer({
                 id: 'pulse-layer',
                 type: 'circle',
                 source: 'vibes-source',
                 paint: {
-                    'circle-radius': 12,
+                    'circle-radius': 14,
                     'circle-color': '#00d4ff',
-                    'circle-opacity': 0.3,
-                    'circle-stroke-width': 2,
-                    'circle-stroke-color': '#ff006e'
+                    'circle-opacity': 0.25,
+                    'circle-stroke-width': 2.5,
+                    'circle-stroke-color': '#ff006e',
+                    'circle-stroke-opacity': 0.5
                 }
             });
 
-            setupMarkerClickHandler();
+            // Setup interactions
+            setupMarkerInteractions();
 
-            map.on('mouseenter', 'vibes-layer', () => {
-                map.getCanvas().style.cursor = 'pointer';
-            });
+            console.log('✅ Map fully initialized');
 
-            map.on('mouseleave', 'vibes-layer', () => {
-                map.getCanvas().style.cursor = '';
-            });
+            // Detect location
+            detectUserLocation();
 
+            // Notify app
             if (window.ReactNativeWebView) {
                 window.ReactNativeWebView.postMessage(JSON.stringify({
-                    type: 'MAP_READY'
+                    type: 'MAP_READY',
+                    timestamp: new Date().toISOString()
                 }));
             }
 
-            console.log('✅ Map initialized');
-            
-            // Try to detect location after map loads
             setTimeout(() => {
-                autoDetectLocation();
-            }, 500);
-        });
+                hideLoadingOverlay();
+            }, 1200);
+        }
 
         // ============================================================
-        // CREATE CUSTOM MARKER
+        // 🎨 CREATE MARKER IMAGES
         // ============================================================
 
-        function createMarkerImage() {
+        function createUserMarkerImage() {
             const canvas = document.createElement('canvas');
-            canvas.width = 48;
-            canvas.height = 48;
-            const ctx = canvas.getContext('2d');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d', { antialias: true });
 
-            ctx.fillStyle = 'rgba(0, 212, 255, 0.2)';
+            // Outer glow
+            ctx.fillStyle = 'rgba(0, 212, 255, 0.15)';
             ctx.beginPath();
-            ctx.arc(24, 24, 20, 0, Math.PI * 2);
+            ctx.arc(32, 32, 28, 0, Math.PI * 2);
             ctx.fill();
 
-            ctx.fillStyle = 'rgba(0, 212, 255, 0.4)';
+            // Middle ring
+            ctx.fillStyle = 'rgba(0, 212, 255, 0.3)';
             ctx.beginPath();
-            ctx.arc(24, 24, 14, 0, Math.PI * 2);
+            ctx.arc(32, 32, 20, 0, Math.PI * 2);
             ctx.fill();
 
+            // Outer border
+            ctx.strokeStyle = '#ff006e';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.arc(32, 32, 20, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Main circle
             ctx.fillStyle = '#00d4ff';
             ctx.beginPath();
-            ctx.arc(24, 24, 8, 0, Math.PI * 2);
+            ctx.arc(32, 32, 14, 0, Math.PI * 2);
             ctx.fill();
 
+            // Inner border
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Center dot
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(32, 32, 5, 0, Math.PI * 2);
+            ctx.fill();
+
+            STATE.map.addImage('user-marker', canvas, { sdf: false });
+        }
+
+        function createVibeMarkerImage() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 56;
+            canvas.height = 56;
+            const ctx = canvas.getContext('2d', { antialias: true });
+
+            // Outer glow
+            ctx.fillStyle = 'rgba(0, 212, 255, 0.2)';
+            ctx.beginPath();
+            ctx.arc(28, 28, 24, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Main circle
+            ctx.fillStyle = '#00d4ff';
+            ctx.beginPath();
+            ctx.arc(28, 28, 12, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Border
             ctx.strokeStyle = '#ff006e';
             ctx.lineWidth = 2;
             ctx.stroke();
 
+            // Center pulse
             ctx.fillStyle = '#ffffff';
             ctx.beginPath();
-            ctx.arc(24, 24, 3, 0, Math.PI * 2);
+            ctx.arc(28, 28, 4, 0, Math.PI * 2);
             ctx.fill();
 
-            map.addImage('vibe-marker', canvas, { sdf: false });
+            STATE.map.addImage('vibe-marker', canvas, { sdf: false });
         }
 
         // ============================================================
-        // AUTO-DETECT LOCATION (Fallback for direct URL)
+        // 📍 DETECT USER LOCATION
         // ============================================================
 
-        function autoDetectLocation() {
-            console.log('🌍 Auto-detecting location...');
+        function detectUserLocation() {
+            console.log('📍 Detecting user location...');
 
-            if (!navigator.geolocation) {
-                console.warn('⚠️ Geolocation not supported');
-                return;
-            }
+            // Try IP geolocation first (instant)
+            detectFromIP();
+
+            // Fallback: browser geolocation
+            setTimeout(() => {
+                if (!STATE.locationDetected) {
+                    detectFromBrowser();
+                }
+            }, 3000);
+        }
+
+        function detectFromIP() {
+            fetch('https://ipapi.co/json/', { 
+                method: 'GET',
+                headers: { 'Accept': 'application/json' },
+                cache: 'no-cache'
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.latitude && data.longitude) {
+                        centerMapOnLocation(
+                            parseFloat(data.latitude),
+                            parseFloat(data.longitude),
+                            `${data.city}, ${data.country_name}`
+                        );
+                        STATE.locationDetected = true;
+                    }
+                })
+                .catch(e => console.warn('⚠️ IP detection failed:', e.message));
+        }
+
+        function detectFromBrowser() {
+            if (!navigator.geolocation) return;
 
             navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const { latitude, longitude } = position.coords;
-                    console.log('✅ Location detected:', latitude, longitude);
-
-                    if (locationDetected) return; // Prevent duplicate calls
-                    locationDetected = true;
-
-                    userLat = latitude;
-                    userLng = longitude;
-
-                    // Center map
-                    map.easeTo({
-                        center: [longitude, latitude],
-                        zoom: 15,
-                        duration: 500
-                    });
-
-                    // Add marker
-                    setTimeout(() => {
-                        addUserLocationMarker(latitude, longitude);
-                    }, 300);
-
-                    // Smooth animation
-                    setTimeout(() => {
-                        map.flyTo({
-                            center: [longitude, latitude],
-                            zoom: 15,
-                            duration: 1200
-                        });
-                    }, 800);
+                (pos) => {
+                    centerMapOnLocation(
+                        pos.coords.latitude,
+                        pos.coords.longitude,
+                        'Posizione attuale'
+                    );
+                    STATE.locationDetected = true;
                 },
-                (error) => {
-                    console.warn('⚠️ Geolocation error:', error.message);
-                },
-                {
-                    timeout: 5000,
+                (err) => console.warn('⚠️ Browser geolocation denied:', err.message),
+                { 
                     enableHighAccuracy: true,
+                    timeout: 8000,
                     maximumAge: 0
                 }
             );
         }
 
-        // ============================================================
-        // MESSAGE LISTENER FROM REACT NATIVE APP
-        // ============================================================
+        function centerMapOnLocation(lat, lng, name) {
+            console.log('🎯 Centering on:', name, `(${lat.toFixed(4)}, ${lng.toFixed(4)})`);
 
-        window.addEventListener('message', (event) => {
-            try {
-                const data = typeof event.data === 'string'
-                    ? JSON.parse(event.data)
-                    : event.data;
+            STATE.userLat = lat;
+            STATE.userLng = lng;
+            STATE.userLocation = name;
 
-                console.log('📨 Message:', data.type);
-
-                if (!data.type) return;
-
-                switch (data.type) {
-                    case 'SET_CENTER':
-                        handleSetCenter(data);
-                        break;
-                    case 'ADD_VIBE':
-                        handleAddVibe(data);
-                        break;
-                    case 'UPDATE_VIBES':
-                        handleUpdateVibes(data);
-                        break;
-                    case 'FLY_TO':
-                        handleFlyTo(data);
-                        break;
-                    case 'CLEAR_VIBES':
-                        handleClearVibes();
-                        break;
-                    case 'REMOVE_VIBE':
-                        handleRemoveVibe(data);
-                        break;
-                }
-            } catch (error) {
-                console.error('❌ Message error:', error);
-            }
-        });
-
-        // ============================================================
-        // HANDLE SET_CENTER
-        // ============================================================
-
-        function handleSetCenter(data) {
-            console.log('🎯 SET_CENTER:', data.lat, data.lng);
-
-            if (!data.lat || !data.lng) return;
-
-            locationDetected = true; // Mark as detected from app
-            userLat = parseFloat(data.lat);
-            userLng = parseFloat(data.lng);
-
-            map.easeTo({
-                center: [userLng, userLat],
+            // Immediate center
+            STATE.map.easeTo({
+                center: [lng, lat],
                 zoom: 15,
-                duration: 500
+                duration: 600,
+                essential: false
             });
 
+            // Add marker
             setTimeout(() => {
-                addUserLocationMarker(userLat, userLng);
+                addUserMarkerToMap(lat, lng);
             }, 300);
 
+            // Smooth animation
             setTimeout(() => {
-                map.flyTo({
-                    center: [userLng, userLat],
+                STATE.map.flyTo({
+                    center: [lng, lat],
                     zoom: 15,
-                    duration: 1200
+                    duration: 1200,
+                    essential: false
                 });
-            }, 800);
+            }, 900);
+
+            // Update UI
+            updateLocationPanel(lat, lng, name);
         }
 
         // ============================================================
-        // HANDLE ADD VIBE
+        // 👤 ADD USER MARKER
         // ============================================================
 
-        function handleAddVibe(data) {
-            if (!data.vibe) return;
+        function addUserMarkerToMap(lat, lng) {
+            if (STATE.userMarker) {
+                STATE.userMarker.remove();
+            }
 
-            const vibe = data.vibe;
+            const el = document.createElement('div');
+            el.style.cssText = `
+                width: 40px;
+                height: 40px;
+                background: radial-gradient(circle, #00d4ff 0%, rgba(0, 212, 255, 0.4) 100%);
+                border: 3px solid #ff006e;
+                border-radius: 50%;
+                box-shadow: 0 0 24px rgba(0, 212, 255, 0.8), 0 0 40px rgba(255, 0, 110, 0.4);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                animation: glow 2s ease-in-out infinite;
+            `;
 
-            if (!vibe.latitude || !vibe.longitude) return;
+            const dot = document.createElement('div');
+            dot.style.cssText = `
+                width: 10px;
+                height: 10px;
+                background: #ffffff;
+                border-radius: 50%;
+                box-shadow: 0 0 12px rgba(255, 255, 255, 0.9);
+            `;
+            el.appendChild(dot);
 
-            const source = map.getSource('vibes-source');
+            STATE.userMarker = new mapboxgl.Marker(el, { anchor: 'center' })
+                .setLngLat([lng, lat])
+                .setPopup(new mapboxgl.Popup({ offset: 25, closeButton: true }).setHTML(`
+                    <div style="text-align: center; padding: 4px;">
+                        <strong style="color: #00d4ff; font-size: 14px; display: block; margin-bottom: 6px;">📍 La tua posizione</strong>
+                        <small style="color: rgba(0, 212, 255, 0.8);">${lat.toFixed(4)}, ${lng.toFixed(4)}</small>
+                    </div>
+                `))
+                .addTo(STATE.map);
+
+            console.log('✅ User marker added');
+        }
+
+        // ============================================================
+        // ✨ ADD VIBE MARKER (Real-time)
+        // ============================================================
+
+        function addVibeMarker(vibe) {
+            if (!STATE.map || !STATE.mapLoaded) return;
+            if (!vibe.id || !vibe.latitude || !vibe.longitude) return;
+
+            const source = STATE.map.getSource('vibes-source');
             if (!source) return;
 
-            const sourceData = source._data;
+            const data = source._data;
 
-            if (sourceData.features.some(f => f.properties.id === vibe.id)) {
+            // Prevent duplicates
+            if (data.features.some(f => f.properties.id === vibe.id)) {
                 return;
             }
 
+            // Add feature
             const feature = {
                 type: 'Feature',
                 geometry: {
@@ -376,29 +608,73 @@
                 properties: {
                     id: vibe.id,
                     title: vibe.title || 'Vibe',
-                    user: vibe.userName || 'Utente',
-                    category: vibe.category || 'General'
+                    userName: vibe.userName || 'Utente',
+                    category: vibe.category || 'General',
+                    timestamp: vibe.timestamp || new Date().toISOString()
                 }
             };
 
-            sourceData.features.push(feature);
-            source.setData(sourceData);
+            data.features.push(feature);
+            source.setData(data);
 
-            map.flyTo({
+            console.log('✅ Vibe marker added:', vibe.id);
+
+            // Fly to new vibe
+            STATE.map.flyTo({
                 center: [parseFloat(vibe.longitude), parseFloat(vibe.latitude)],
-                zoom: Math.min(map.getZoom() + 0.8, 16),
-                duration: 1200
+                zoom: Math.min(STATE.map.getZoom() + 0.5, 16),
+                duration: 1000
             });
         }
 
         // ============================================================
-        // HANDLE UPDATE VIBES
+        // 📥 MESSAGE LISTENER (React Native)
         // ============================================================
 
-        function handleUpdateVibes(data) {
-            if (!data.vibes || !Array.isArray(data.vibes)) return;
+        window.addEventListener('message', (event) => {
+            try {
+                const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
 
-            const features = data.vibes
+                console.log('📨 Message:', data.type);
+
+                switch(data.type) {
+                    case 'SET_CENTER':
+                        centerMapOnLocation(data.lat, data.lng, data.name || 'React Native Location');
+                        break;
+
+                    case 'ADD_VIBE':
+                        addVibeMarker(data.vibe);
+                        break;
+
+                    case 'UPDATE_VIBES':
+                        updateAllVibes(data.vibes);
+                        break;
+
+                    case 'FLY_TO':
+                        flyToLocation(data.lat, data.lng, data.zoom);
+                        break;
+
+                    case 'CLEAR_VIBES':
+                        clearAllVibes();
+                        break;
+
+                    case 'REMOVE_VIBE':
+                        removeVibe(data.vibeId);
+                        break;
+                }
+            } catch (e) {
+                console.error('❌ Message error:', e);
+            }
+        });
+
+        // ============================================================
+        // 🔄 BATCH UPDATE VIBES
+        // ============================================================
+
+        function updateAllVibes(vibes) {
+            if (!Array.isArray(vibes)) return;
+
+            const features = vibes
                 .filter(v => v.latitude && v.longitude)
                 .map(v => ({
                     type: 'Feature',
@@ -409,171 +685,133 @@
                     properties: {
                         id: v.id,
                         title: v.title || 'Vibe',
-                        user: v.userName || 'Utente',
+                        userName: v.userName || 'Utente',
                         category: v.category || 'General'
                     }
                 }));
 
-            const source = map.getSource('vibes-source');
+            const source = STATE.map.getSource('vibes-source');
             if (source) {
                 source.setData({
                     type: 'FeatureCollection',
                     features: features
                 });
             }
+
+            console.log('✅ Vibes updated:', features.length);
         }
 
-        // ============================================================
-        // HANDLE FLY TO
-        // ============================================================
+        function clearAllVibes() {
+            const source = STATE.map.getSource('vibes-source');
+            if (source) {
+                source.setData({ type: 'FeatureCollection', features: [] });
+            }
+        }
 
-        function handleFlyTo(data) {
-            if (!data.lat || !data.lng) return;
+        function removeVibe(vibeId) {
+            const source = STATE.map.getSource('vibes-source');
+            if (source) {
+                const data = source._data;
+                source.setData({
+                    type: 'FeatureCollection',
+                    features: data.features.filter(f => f.properties.id !== vibeId)
+                });
+            }
+        }
 
-            const lat = parseFloat(data.lat);
-            const lng = parseFloat(data.lng);
-
-            map.flyTo({
+        function flyToLocation(lat, lng, zoom = 15) {
+            STATE.map.flyTo({
                 center: [lng, lat],
-                zoom: data.zoom || 15,
+                zoom: zoom,
                 duration: 2000
             });
         }
 
         // ============================================================
-        // HANDLE CLEAR VIBES
+        // 🖱️ MARKER INTERACTIONS
         // ============================================================
 
-        function handleClearVibes() {
-            const source = map.getSource('vibes-source');
-            if (source) {
-                source.setData({
-                    type: 'FeatureCollection',
-                    features: []
-                });
-            }
-        }
-
-        // ============================================================
-        // HANDLE REMOVE VIBE
-        // ============================================================
-
-        function handleRemoveVibe(data) {
-            if (!data.vibeId) return;
-
-            const source = map.getSource('vibes-source');
-            if (source) {
-                const sourceData = source._data;
-                sourceData.features = sourceData.features.filter(
-                    f => f.properties.id !== data.vibeId
-                );
-                source.setData(sourceData);
-            }
-        }
-
-        // ============================================================
-        // ADD USER LOCATION MARKER
-        // ============================================================
-
-        function addUserLocationMarker(lat, lng) {
-            if (userLocationMarker) {
-                userLocationMarker.remove();
-            }
-
-            const markerElement = document.createElement('div');
-            markerElement.style.cssText = `
-                width: 32px;
-                height: 32px;
-                background: radial-gradient(circle, #00d4ff 0%, rgba(0, 212, 255, 0.5) 100%);
-                border: 3px solid #ff006e;
-                border-radius: 50%;
-                box-shadow: 0 0 20px rgba(0, 212, 255, 0.8);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                animation: glow 2s ease-in-out infinite;
-            `;
-
-            const innerDot = document.createElement('div');
-            innerDot.style.cssText = `
-                width: 8px;
-                height: 8px;
-                background: #ffffff;
-                border-radius: 50%;
-                box-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
-            `;
-            markerElement.appendChild(innerDot);
-
-            userLocationMarker = new mapboxgl.Marker(markerElement, {
-                anchor: 'center'
-            })
-                .setLngLat([lng, lat])
-                .setPopup(new mapboxgl.Popup({ offset: 25 }).setHTML(
-                    `<div style="text-align: center;">
-                        <strong>📍 Posizione</strong><br/>
-                        <small>${lat.toFixed(4)}, ${lng.toFixed(4)}</small>
-                    </div>`
-                ))
-                .addTo(map);
-
-            console.log('✅ User marker added');
-        }
-
-        // ============================================================
-        // SETUP MARKER CLICK HANDLER
-        // ============================================================
-
-        let popupCache = null;
-
-        function setupMarkerClickHandler() {
-            map.on('click', 'vibes-layer', (e) => {
+        function setupMarkerInteractions() {
+            STATE.map.on('click', 'vibes-layer', (e) => {
                 if (!e.features || e.features.length === 0) return;
 
                 const feature = e.features[0];
                 const props = feature.properties;
                 const coords = feature.geometry.coordinates;
 
-                if (popupCache) {
-                    popupCache.remove();
+                if (STATE.popupCache) {
+                    STATE.popupCache.remove();
                 }
 
-                const popupContent = `
-                    <div style="animation: fadeIn 0.3s ease-in;">
-                        <div style="margin-bottom: 8px;">
-                            <strong style="font-size: 14px;">${props.title}</strong>
-                        </div>
-                        <div style="font-size: 11px; margin-bottom: 6px;">
-                            <strong>👤 ${props.user}</strong>
-                        </div>
-                        <div style="font-size: 11px; margin-bottom: 6px;">
-                            <strong>📂 ${props.category}</strong>
-                        </div>
-                    </div>
-                `;
-
-                popupCache = new mapboxgl.Popup({
+                STATE.popupCache = new mapboxgl.Popup({
                     closeButton: true,
                     closeOnClick: true,
                     offset: 25,
-                    maxWidth: '220px'
+                    maxWidth: '240px'
                 })
                     .setLngLat(coords)
-                    .setHTML(popupContent)
-                    .addTo(map);
+                    .setHTML(`
+                        <div style="animation: fadeIn 0.3s ease-in;">
+                            <strong style="font-size: 15px; display: block; margin-bottom: 6px;">${props.title}</strong>
+                            <div style="font-size: 12px; margin-bottom: 4px;">👤 ${props.userName}</div>
+                            <div style="font-size: 12px; margin-bottom: 4px;">📂 ${props.category}</div>
+                            <div style="font-size: 11px; opacity: 0.7;">📍 ${coords[1].toFixed(4)}, ${coords[0].toFixed(4)}</div>
+                        </div>
+                    `)
+                    .addTo(STATE.map);
 
+                // Notify app
                 if (window.ReactNativeWebView) {
                     window.ReactNativeWebView.postMessage(JSON.stringify({
                         type: 'VIBE_CLICKED',
-                        vibe: {
-                            id: props.id,
-                            title: props.title
-                        }
+                        vibeId: props.id
                     }));
                 }
             });
+
+            STATE.map.on('mouseenter', 'vibes-layer', () => {
+                STATE.map.getCanvas().style.cursor = 'pointer';
+            });
+
+            STATE.map.on('mouseleave', 'vibes-layer', () => {
+                STATE.map.getCanvas().style.cursor = '';
+            });
         }
 
-        console.log('🗺️ VibeNow Map Ready');
+        // ============================================================
+        // 🎨 UI UPDATES
+        // ============================================================
+
+        function updateLocationPanel(lat, lng, name) {
+            const nameEl = document.getElementById('locationName');
+            const coordsEl = document.getElementById('locationCoords');
+
+            if (nameEl) nameEl.textContent = `📍 ${name}`;
+            if (coordsEl) coordsEl.textContent = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+        }
+
+        function hideLoadingOverlay() {
+            const overlay = document.getElementById('loadingOverlay');
+            if (overlay) overlay.classList.add('hidden');
+        }
+
+        // ============================================================
+        // 🚀 START APPLICATION
+        // ============================================================
+
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 VibeNow Map Starting...');
+            initializeMap();
+        });
+
+        // Fallback if DOM already loaded
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => initializeMap());
+        } else {
+            initializeMap();
+        }
+
+        console.log('✅ VibeNow Script Loaded');
     </script>
 </body>
 
