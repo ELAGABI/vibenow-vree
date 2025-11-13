@@ -3,7 +3,7 @@
 <head>
     <meta charset='utf-8' />
     <meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no' />
-    <title>VibeNow Map - Test</title>
+    <title>VibeNow Map</title>
     <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
     <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
     <style>
@@ -24,6 +24,7 @@
             background: #000;
         }
 
+        /* LOADING OVERLAY */
         .overlay {
             position: fixed;
             top: 0;
@@ -58,55 +59,9 @@
             to { transform: rotate(360deg); }
         }
 
-        .status {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: rgba(0, 212, 255, 0.1);
-            border: 1px solid #00d4ff;
-            color: #00d4ff;
-            padding: 10px 14px;
-            border-radius: 8px;
-            font-size: 12px;
-            font-weight: bold;
-            z-index: 100;
-            font-family: Arial, sans-serif;
-        }
+        /* NO INFO BOX - CLEAN MAP */
 
-        .info {
-            position: fixed;
-            bottom: 20px;
-            left: 20px;
-            background: rgba(0, 0, 0, 0.95);
-            border: 2px solid #00d4ff;
-            color: #00d4ff;
-            padding: 14px;
-            border-radius: 8px;
-            font-size: 12px;
-            z-index: 100;
-            font-family: Arial, monospace;
-            max-width: 300px;
-        }
-
-        .info-title {
-            font-size: 13px;
-            font-weight: bold;
-            margin-bottom: 6px;
-            color: #00d4ff;
-        }
-
-        .info-coord {
-            font-size: 11px;
-            opacity: 0.8;
-            margin-bottom: 4px;
-        }
-
-        .info-accuracy {
-            font-size: 10px;
-            opacity: 0.6;
-            color: #ff006e;
-        }
-
+        /* MAPBOX POPUP */
         .mapboxgl-popup-content {
             background: rgba(0, 0, 0, 0.95) !important;
             color: #00d4ff !important;
@@ -115,23 +70,26 @@
             border-radius: 6px !important;
             font-family: Arial, sans-serif;
         }
+
+        .mapboxgl-popup-tip {
+            border-top-color: #00d4ff !important;
+        }
+
+        .mapboxgl-popup-close-button {
+            color: #00d4ff !important;
+            font-size: 18px !important;
+        }
     </style>
 </head>
 <body>
     <div id="map"></div>
     <div class="overlay" id="overlay">
         <div class="spinner"></div>
-        <div>VIBENOW MAP - LOADING</div>
-    </div>
-    <div class="status" id="status">INITIALIZING...</div>
-    <div class="info" id="info" style="display:none;">
-        <div class="info-title">📍 Location</div>
-        <div class="info-coord" id="infoCoord">Detecting...</div>
-        <div class="info-accuracy" id="infoAccuracy"></div>
+        <div>VIBENOW</div>
     </div>
 
     <script>
-        console.log('✅ VibeNow Map Test - Chrome Edition');
+        console.log('✅ VibeNow Map - Clean Edition');
 
         // CONFIG
         const CONFIG = {
@@ -141,14 +99,13 @@
         // STATE
         let map = null;
         let userMarker = null;
-        let locationAccuracy = 0;
 
         // ============================================================
         // INITIALIZE MAP
         // ============================================================
 
         function initMap() {
-            console.log('🗺️ Initializing map...');
+            console.log('🗺️ Init');
 
             mapboxgl.accessToken = CONFIG.token;
 
@@ -161,11 +118,10 @@
             });
 
             map.on('load', () => {
-                console.log('✅ Map loaded');
+                console.log('✅ Loaded');
                 document.getElementById('overlay').classList.add('hidden');
-                document.getElementById('status').textContent = '🟢 LIVE';
 
-                // Add GeoJSON source
+                // Add source
                 map.addSource('vibes', {
                     type: 'geojson',
                     data: { type: 'FeatureCollection', features: [] }
@@ -184,6 +140,24 @@
                     }
                 });
 
+                // Click handler
+                map.on('click', 'vibes-layer', (e) => {
+                    if (!e.features || !e.features[0]) return;
+                    const props = e.features[0].properties;
+                    const coords = e.features[0].geometry.coordinates;
+
+                    new mapboxgl.Popup({ offset: 25 })
+                        .setLngLat(coords)
+                        .setHTML(`
+                            <div>
+                                <strong>${props.title || 'Vibe'}</strong><br/>
+                                <small>👤 ${props.user || 'User'}</small><br/>
+                                <small>📂 ${props.category || 'General'}</small>
+                            </div>
+                        `)
+                        .addTo(map);
+                });
+
                 // Get location
                 getLocation();
 
@@ -192,8 +166,6 @@
                     window.ReactNativeWebView.postMessage(JSON.stringify({type: 'MAP_READY'}));
                 }
             });
-
-            map.on('error', (e) => console.error('❌ Error:', e));
         }
 
         // ============================================================
@@ -201,86 +173,67 @@
         // ============================================================
 
         function getLocation() {
-            console.log('📍 Getting location...');
+            console.log('📍 Getting location');
 
-            // TRY BROWSER GEOLOCATION FIRST (ACCURATE)
+            // Browser geolocation (accurate)
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
                     (pos) => {
-                        console.log('✅ Browser geolocation success');
-                        const { latitude, longitude, accuracy } = pos.coords;
-                        locationAccuracy = accuracy;
-                        centerMap(latitude, longitude, 'Browser GPS', accuracy);
+                        console.log('✅ GPS:', pos.coords.latitude, pos.coords.longitude);
+                        centerMap(pos.coords.latitude, pos.coords.longitude);
                     },
                     (err) => {
-                        console.warn('⚠️ Browser geolocation failed:', err.message);
-                        tryIPGeolocation();
+                        console.warn('⚠️ GPS failed, trying IP');
+                        tryIP();
                     },
-                    {
-                        enableHighAccuracy: true,
-                        timeout: 5000,
-                        maximumAge: 0
-                    }
+                    { enableHighAccuracy: true, timeout: 5000 }
                 );
             } else {
-                console.warn('⚠️ Geolocation not supported');
-                tryIPGeolocation();
+                tryIP();
             }
         }
 
-        function tryIPGeolocation() {
-            console.log('📍 Trying IP geolocation...');
-
+        function tryIP() {
             fetch('https://ipapi.co/json/')
                 .then(r => r.json())
                 .then(data => {
                     if (data.latitude && data.longitude) {
-                        console.log('✅ IP geolocation success');
-                        centerMap(parseFloat(data.latitude), parseFloat(data.longitude), data.city || 'IP Location', 5000);
+                        console.log('✅ IP:', data.city);
+                        centerMap(parseFloat(data.latitude), parseFloat(data.longitude));
                     }
                 })
-                .catch(e => console.error('❌ IP failed:', e));
+                .catch(e => console.warn('⚠️ IP failed'));
         }
 
         // ============================================================
         // CENTER MAP
         // ============================================================
 
-        function centerMap(lat, lng, name, accuracy) {
-            console.log('🎯 Center:', lat, lng, name);
+        function centerMap(lat, lng) {
+            console.log('🎯', lat, lng);
 
-            // Fly to location
             map.flyTo({
                 center: [lng, lat],
                 zoom: 15,
                 duration: 1500
             });
 
-            // Add marker - VERY SMALL (16px)
             setTimeout(() => {
-                addUserMarker(lat, lng, accuracy);
+                addMarker(lat, lng);
             }, 300);
-
-            // Update UI
-            document.getElementById('infoCoord').textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-            if (accuracy) {
-                document.getElementById('infoAccuracy').textContent = `Accuracy: ±${Math.round(accuracy)}m`;
-            }
-            document.getElementById('info').style.display = 'block';
         }
 
         // ============================================================
-        // ADD USER MARKER - TINY SIZE
+        // ADD TINY MARKER (16px)
         // ============================================================
 
-        function addUserMarker(lat, lng, accuracy) {
+        function addMarker(lat, lng) {
             if (userMarker) userMarker.remove();
 
-            // CREATE TINY MARKER (16px)
             const el = document.createElement('div');
             el.style.width = '16px';
             el.style.height = '16px';
-            el.style.background = 'radial-gradient(circle, #00d4ff 0%, rgba(0, 212, 255, 0.4) 100%)';
+            el.style.background = 'radial-gradient(circle, #00d4ff, rgba(0, 212, 255, 0.4))';
             el.style.border = '2px solid #ff006e';
             el.style.borderRadius = '50%';
             el.style.boxShadow = '0 0 12px rgba(0, 212, 255, 0.8)';
@@ -288,7 +241,6 @@
             el.style.alignItems = 'center';
             el.style.justifyContent = 'center';
 
-            // Inner dot
             const dot = document.createElement('div');
             dot.style.width = '4px';
             dot.style.height = '4px';
@@ -299,46 +251,55 @@
             userMarker = new mapboxgl.Marker(el, { anchor: 'center' })
                 .setLngLat([lng, lat])
                 .setPopup(new mapboxgl.Popup({ offset: 15 }).setHTML(`
-                    <div>
-                        <strong>📍 Your Position</strong><br/>
-                        <small>${lat.toFixed(6)}</small><br/>
-                        <small>${lng.toFixed(6)}</small><br/>
-                        ${accuracy ? '<small style="color: #ff006e;">±' + Math.round(accuracy) + 'm</small>' : ''}
+                    <div style="text-align: center;">
+                        <strong>📍 You</strong><br/>
+                        <small>${lat.toFixed(6)}, ${lng.toFixed(6)}</small>
                     </div>
                 `))
                 .addTo(map);
 
-            console.log('✅ Tiny marker added (16px)');
+            console.log('✅ Marker');
         }
 
         // ============================================================
-        // MESSAGE LISTENER (for app integration)
+        // MESSAGE LISTENER
         // ============================================================
 
         window.addEventListener('message', (e) => {
             try {
                 const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
-                console.log('📨 Message:', data.type);
+                console.log('📨', data.type);
 
                 if (data.type === 'SET_CENTER') {
-                    centerMap(data.lat, data.lng, data.name || 'App Location', null);
+                    centerMap(data.lat, data.lng);
                 }
                 else if (data.type === 'ADD_VIBE') {
-                    const vibe = data.vibe;
+                    const v = data.vibe;
                     const source = map.getSource('vibes');
                     if (source) {
                         const geoData = source._data;
                         geoData.features.push({
                             type: 'Feature',
-                            geometry: { type: 'Point', coordinates: [vibe.longitude, vibe.latitude] },
-                            properties: { title: vibe.title, user: vibe.userName }
+                            geometry: { type: 'Point', coordinates: [v.longitude, v.latitude] },
+                            properties: { id: v.id, title: v.title, user: v.userName, category: v.category }
                         });
                         source.setData(geoData);
+                        map.flyTo({ center: [v.longitude, v.latitude], zoom: 16 });
                     }
-                    map.flyTo({ center: [vibe.longitude, vibe.latitude], zoom: 16 });
+                }
+                else if (data.type === 'UPDATE_VIBES') {
+                    const source = map.getSource('vibes');
+                    if (source && data.vibes) {
+                        const features = data.vibes.map(v => ({
+                            type: 'Feature',
+                            geometry: { type: 'Point', coordinates: [v.longitude, v.latitude] },
+                            properties: { id: v.id, title: v.title, user: v.userName, category: v.category }
+                        }));
+                        source.setData({ type: 'FeatureCollection', features });
+                    }
                 }
             } catch (err) {
-                console.error('❌ Error:', err);
+                console.error('❌', err);
             }
         });
 
@@ -346,7 +307,6 @@
         // START
         // ============================================================
 
-        console.log('🚀 Starting...');
         initMap();
     </script>
 </body>
